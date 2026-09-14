@@ -1,0 +1,15 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Datos y artefactos de modelo (se regeneran con train.py, ver README)
+data/raw/
+data/processed/
+models/*.joblib
