@@ -1,10 +1,11 @@
 from pathlib import Path
-from tp_mlops2.data import load_raw, clean_and_merge
+
 import pandas as pd
-import numpy as np
-from tp_mlops2.features import add_cyclical_features, add_lag_features, dropna_lags, FEATURE_COLUMNS
-from tp_mlops2.predict import load_model, predict
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
+
+from tp_mlops2.data import clean_and_merge, load_raw
+from tp_mlops2.features import FEATURE_COLUMNS, add_cyclical_features, add_lag_features, dropna_lags
+from tp_mlops2.predict import load_model, predict
 
 energy, weather = load_raw(Path("data"))
 df = clean_and_merge(energy, weather)

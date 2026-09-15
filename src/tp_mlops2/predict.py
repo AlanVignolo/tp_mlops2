@@ -21,5 +21,5 @@ def predict(
     """Predice la demanda para cada fila de df, usando el orden de features del modelo."""
     X = df[feature_cols]
     y_pred = model.predict(X)
-    
+
     return pd.Series(y_pred, index=df.index, name="predicted_load")

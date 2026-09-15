@@ -1,4 +1,3 @@
-from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -52,9 +51,9 @@ def predict_load(request: PredictionRequest) -> PredictionResponse:
         index=[request.timestamp],
     )
     row = add_cyclical_features(row)
-    
+
     y_pred = predict(model, row, feature_cols)
-    
+
     return PredictionResponse(
         predicted_load_mw=float(y_pred.iloc[0]),
         timestamp=request.timestamp,
