@@ -1,4 +1,3 @@
-import time
 
 import grpc
 
@@ -19,7 +18,11 @@ SAMPLE_REQUEST = {
 def predict_unary(stub):
     request = scoring_pb2.PredictRequest(**SAMPLE_REQUEST)
     response = stub.Predict(request)
-    print(f"Predicción unary: {response.predicted_load_mw:.1f} MW (modelo {response.model_version})")
+    print(
+        f"Predicción unary: {response.predicted_load_mw:.1f} MW "
+        f"(modelo {response.model_version})"
+    )
+
 
 
 def predict_batch(stub, n=5):

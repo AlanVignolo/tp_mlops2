@@ -2,11 +2,11 @@ import time
 from concurrent import futures
 
 import grpc
+import pandas as pd
 
 from tp_mlops2.features import add_cyclical_features
 from tp_mlops2.grpc_api import scoring_pb2, scoring_pb2_grpc
 from tp_mlops2.predict import MODEL_ALIAS, REGISTERED_MODEL_NAME, load_model, predict
-import pandas as pd
 
 
 class ScoringServicer(scoring_pb2_grpc.ScoringServicer):
