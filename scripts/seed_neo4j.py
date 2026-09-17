@@ -18,16 +18,16 @@ def seed():
     client = MlflowClient(tracking_uri=MLFLOW_TRACKING_URI)
     model_version = client.get_model_version_by_alias(REGISTERED_MODEL_NAME, MODEL_ALIAS)
     run = client.get_run(model_version.run_id)
-    
+
     model_name = f"{REGISTERED_MODEL_NAME} v{model_version.version}"
     experiment_name = f"run {model_version.run_id[:8]}"
     metrics = run.data.metrics
-    
+
     driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
-    
+
     with driver.session() as session:
         session.run("MATCH (n) DETACH DELETE n")
-        
+
         session.run(
             """
             MERGE (raw:Dataset {name: 'energy_dataset_raw'})
@@ -44,7 +44,7 @@ def seed():
             mae_mw=metrics.get("mae_mw"),
             mape=metrics.get("mape"),
         )
-        
+
         for feature_name in FEATURE_COLUMNS:
             session.run(
                 """
@@ -57,10 +57,14 @@ def seed():
                 experiment_name=experiment_name,
                 feature_name=feature_name,
             )
-    
+
     driver.close()
-    print(f"Grafo sembrado: {len(FEATURE_COLUMNS)} features, model {model_name}, run {model_version.run_id}")
-    
+    print(
+        f"Grafo sembrado: {len(FEATURE_COLUMNS)} features, "
+        f"model {model_name}, run {model_version.run_id}"
+    )
+
+
 
 if __name__ == "__main__":
     seed()

@@ -1,9 +1,10 @@
+import os
+
 import mlflow
 import mlflow.sklearn
 import pandas as pd
 from dotenv import load_dotenv
 from mlflow.tracking import MlflowClient
-import os
 
 from tp_mlops2.features import FEATURE_COLUMNS
 

@@ -18,7 +18,7 @@ class Metrics:
     mae_mw: float
     mape: float
     rmse_mw: float
-    
+
 
 @strawberry.type
 class LineageNode:
@@ -31,10 +31,10 @@ class Model:
     name: str
     version: str
     metrics: Metrics
-    
+
     @strawberry.field
     def lineage(self) -> list[LineageNode]:
-        driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD)) # driver instance is used to interact with the Neo4j database
+        driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
         with driver.session() as session:
             result = session.run(
                 """
@@ -55,7 +55,7 @@ def get_model() -> Model:
     model_version = client.get_model_version_by_alias(REGISTERED_MODEL_NAME, MODEL_ALIAS)
     run = client.get_run(model_version.run_id)
     m = run.data.metrics
-    
+
     return Model(
         name=REGISTERED_MODEL_NAME,
         version=str(model_version.version),
@@ -65,7 +65,7 @@ def get_model() -> Model:
             rmse_mw=m["rmse_mw"],
         ),
     )
-    
+
 
 @strawberry.type
 class Query:
