@@ -1,6 +1,9 @@
+import os
 from pathlib import Path
 
-import joblib
+import mlflow
+import mlflow.sklearn
+from dotenv import load_dotenv
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import (
     mean_absolute_error,
@@ -18,12 +21,17 @@ from tp_mlops2.features import (
     dropna_lags,
 )
 
+load_dotenv()
+
 PARAM_DIST_RF = {
     "n_estimators": [100, 200, 300, 500],
     "max_depth": [8, 12, 15, 20, None],
     "min_samples_leaf": [1, 2, 5, 10],
     "max_features": ["sqrt", 0.5, 0.8, 1.0],
 }
+MLFLOW_TRACKING_URI = "http://localhost:5000"
+MLFLOW_EXPERIMENT_NAME = "demanda-electrica-espana"
+REGISTERED_MODEL_NAME = "random_forest_demanda"
 
 def build_dataset(data_dir: Path):
     """Corre el pipeline completo (data + features) y devuelve train/test ya listos para modelar."""
@@ -42,11 +50,14 @@ def build_dataset(data_dir: Path):
 
     return X_train, y_train, X_test, y_test
 
-def train_model(data_dir: Path, models_dir: Path, quick: bool = False) -> None:
-    """Tunea, entrena, evalúa y guarda el modelo Random Forest y sus artefactos.
+def train_model(data_dir: Path, quick: bool = False) -> None:
+    """Tunea, entrena, evalúa y registra el modelo en MLflow (tracking + model registry).
 
     quick=True reduce drásticamente el espacio de búsqueda (para CI/smoke tests).
     """
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
+
     X_train, y_train, X_test, y_test = build_dataset(data_dir)
 
     n_splits = 2 if quick else 5
@@ -68,33 +79,38 @@ def train_model(data_dir: Path, models_dir: Path, quick: bool = False) -> None:
         verbose=1,
         n_jobs=-1,
     )
-    search.fit(X_train, y_train)
+    with mlflow.start_run():
+        search.fit(X_train, y_train)
 
-    best_model = search.best_estimator_
-    y_pred = best_model.predict(X_test)
+        best_model = search.best_estimator_
+        y_pred = best_model.predict(X_test)
 
-    metrics = {
-        "mae_mw": mean_absolute_error(y_test, y_pred),
-        "mape": mean_absolute_percentage_error(y_test, y_pred),
-        "rmse_mw": root_mean_squared_error(y_test, y_pred),
-    }
+        metrics = {
+            "mae_mw": mean_absolute_error(y_test, y_pred),
+            "mape": mean_absolute_percentage_error(y_test, y_pred),
+            "rmse_mw": root_mean_squared_error(y_test, y_pred),
+        }
 
-    models_dir.mkdir(exist_ok=True)
-    joblib.dump(best_model, models_dir / "random_forest_v1.joblib")
-    joblib.dump(FEATURE_COLUMNS, models_dir / "feature_cols_v1.joblib")
-    joblib.dump(metrics, models_dir / "metrics_v1.joblib")
+        mlflow.log_params(search.best_params_)
+        mlflow.log_param("quick_mode", quick)
+        mlflow.log_metrics(metrics)
 
+        mlflow.sklearn.log_model(
+            best_model,
+            artifact_path="model",
+            registered_model_name=REGISTERED_MODEL_NAME
+        )
 
-    print("Mejores parámetros:", search.best_params_)
-    print(
-        f"MAE: {metrics['mae_mw']:.1f} MW | "
-        f"MAPE: {metrics['mape']:.2%} | "
-        f"RMSE: {metrics['rmse_mw']:.1f} MW"
-    )
+        print("Mejores parámetros:", search.best_params_)
+        print(
+            f"MAE: {metrics['mae_mw']:.1f} MW | "
+            f"MAPE: {metrics['mape']:.2%} | "
+            f"RMSE: {metrics['rmse_mw']:.1f} MW"
+        )
 
 
 if __name__ == "__main__":
     import os
 
     quick = os.environ.get("TP_MLOPS2_QUICK_TRAIN") == "1"
-    train_model(Path("data"), Path("models"), quick=quick)
+    train_model(Path("data"), quick=quick)

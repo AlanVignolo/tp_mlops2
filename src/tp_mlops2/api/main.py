@@ -1,19 +1,24 @@
-from pathlib import Path
-
 import pandas as pd
 from fastapi import FastAPI
+from mlflow.tracking import MlflowClient
 
 from tp_mlops2.api.schemas import ModelInfo, PredictionRequest, PredictionResponse
 from tp_mlops2.features import add_cyclical_features
-from tp_mlops2.predict import load_model, predict
-
-BASE_DIR = Path(__file__).resolve().parents[3]
-MODELS_DIR = BASE_DIR / "models"
-MODEL_VERSION = "random_forest_v1"
+from tp_mlops2.predict import (
+    MLFLOW_TRACKING_URI,
+    MODEL_ALIAS,
+    REGISTERED_MODEL_NAME,
+    load_model,
+    predict,
+)
 
 app = FastAPI(title="Demanda Electrica España API", version="1.0")
 
-model, feature_cols, metrics = load_model(MODELS_DIR)
+model, feature_cols, metrics = load_model()
+
+_client = MlflowClient(tracking_uri=MLFLOW_TRACKING_URI)
+_model_version = _client.get_model_version_by_alias(REGISTERED_MODEL_NAME, MODEL_ALIAS)
+MODEL_VERSION = f"{REGISTERED_MODEL_NAME} v{_model_version.version}"
 
 
 @app.get("/health")

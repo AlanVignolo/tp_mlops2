@@ -1,6 +1,21 @@
 import requests
 
 BASE_URL = "http://127.0.0.1:8000"
+GRAPHQL_URL = "http://127.0.0.1:8001/graphql"
+
+MODEL_QUERY = """
+query {
+  model(name: "random_forest_demanda") {
+    name
+    version
+    metrics {
+      maeMw
+      mape
+      rmseMw
+    }
+  }
+}
+"""
 
 VALID_PAYLOAD = {
     "timestamp": "2018-06-15T14:00:00",
@@ -30,3 +45,17 @@ def test_invalid_request():
     print("Caso inválido ->", response.status_code)
     print(response.json())
     assert response.status_code == 422
+
+
+def test_graphql_model_query():
+    response = requests.post(GRAPHQL_URL, json={"query": MODEL_QUERY})
+    print("GraphQL model query ->", response.status_code)
+    print(response.json())
+    assert response.status_code == 200
+    assert "errors" not in response.json()
+
+
+if __name__ == "__main__":
+    test_valid_requests()
+    test_invalid_request()
+    test_graphql_model_query()
