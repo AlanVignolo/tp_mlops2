@@ -1,10 +1,10 @@
-# TP MLOps II — Forecasting de demanda eléctrica (España)
+# TP MLOps II — demanda eléctrica España
 
-TP integrador de Operaciones de Aprendizaje de Máquina II (CEIA/FIUBA). El problema es predecir la demanda eléctrica horaria de España (`total load actual`) con el dataset de Kaggle [energy-consumption-generation-prices-and-weather](https://www.kaggle.com/datasets/nicholasjhana/energy-consumption-generation-prices-and-weather), que trae consumo, generación, precios y clima de las 5 ciudades más grandes del país entre 2015 y 2018.
+TP integrador de Operaciones de Aprendizaje de Máquina II (CEIA/FIUBA). La idea es predecir la demanda eléctrica horaria de España (`total load actual`) con el dataset de Kaggle [energy-consumption-generation-prices-and-weather](https://www.kaggle.com/datasets/nicholasjhana/energy-consumption-generation-prices-and-weather): consumo, generación, precios y clima de las 5 ciudades más grandes del país, 2015-2018.
 
-Apunto al nivel contenedores: todo corre en Docker Compose (Postgres, MinIO, MLflow, Neo4j, y dos APIs, una REST y una GraphQL). Lo fui armando por etapas siguiendo el orden de las clases.
+Voy por el nivel contenedores del TP: todo corre en Docker Compose (Postgres, MinIO, MLflow, Neo4j, y dos APIs — REST y GraphQL). Lo fui armando de a poco, mini-TP por mini-TP, según el orden del curso.
 
-## Setup local (sin Docker, para desarrollo)
+## Setup local (sin Docker)
 
 Necesita [uv](https://docs.astral.sh/uv/) y Python 3.12.
 
@@ -13,40 +13,40 @@ uv venv .venv --python 3.12
 uv sync
 ```
 
-Para los notebooks de `notebooks/`, registrar el kernel:
+Para los notebooks, registro el kernel:
 
 ```powershell
 uv run python -m ipykernel install --user --name=tp-mlops2 --display-name "Python (TP MLOps II)"
 ```
 
-`data/raw/` y `data/processed/` no están en el repo (pesan bastante y se regeneran solos). Hay que bajar el dataset de Kaggle, poner `energy_dataset.csv` y `weather_features.csv` en `data/raw/`, y correr el entrenamiento (ver abajo).
+`data/raw/` y `data/processed/` no están en el repo, pesan bastante. Hay que bajar el dataset de Kaggle y poner `energy_dataset.csv` y `weather_features.csv` en `data/raw/` antes de entrenar.
 
-## Levantar todo con Docker
+## Levantar con Docker
 
-Copiar `.env.example` a `.env` y completar las credenciales (usuario/password de Postgres, MinIO y Neo4j).
+Copiar `.env.example` a `.env` y completar las credenciales.
 
 ```powershell
 docker compose up -d --build
 ```
 
-Esto levanta 6 contenedores: `postgres` (guarda los experimentos/métricas de MLflow), `minio` (guarda los modelos serializados, habla el protocolo S3), `mlflow` (tracking + registry, puerto 5000), `neo4j` (grafo de linaje, puerto 7474 la consola / 7687 el driver), `api` (REST, puerto 8000) y `graphql-api` (puerto 8001).
+Levanta 6 contenedores: `postgres` (guarda experimentos/métricas de MLflow), `minio` (guarda los modelos serializados, S3-compatible), `mlflow` (tracking + registry, puerto 5000), `neo4j` (grafo de linaje, 7474 consola / 7687 driver), `api` (REST, 8000) y `graphql-api` (8001).
 
-La primera vez hay 3 pasos manuales:
-1. Crear el bucket `mlflow-artifacts` en la consola de MinIO (`localhost:9001`).
-2. Entrenar un modelo (siguiente sección) y, en la UI de MLflow (`localhost:5000`), asignarle el alias `production` a la versión que quiero servir.
+La primera vez hay que hacer 3 cosas a mano:
+1. Crear el bucket `mlflow-artifacts` en MinIO (`localhost:9001`).
+2. Entrenar un modelo y, en la UI de MLflow (`localhost:5000`), ponerle el alias `production` a la versión que quiero servir.
 3. Sembrar el grafo de linaje: `uv run python scripts/seed_neo4j.py`.
 
-## Entrenar el modelo
+## Entrenar
 
 ```powershell
 uv run python -m tp_mlops2.train
 ```
 
-Hace tuning con `RandomizedSearchCV` sobre un Random Forest (`TimeSeriesSplit`, 5 folds), evalúa contra el año 2018 como test, y loguea todo a MLflow: hiperparámetros, métricas, y el modelo mismo (queda registrado como nueva versión en el Model Registry). No se guarda nada en `models/*.joblib` — el modelo vive en MLflow/MinIO.
+Tuning con `RandomizedSearchCV` sobre un Random Forest (`TimeSeriesSplit`, 5 folds), evaluado contra 2018 como test. Loguea todo a MLflow — hiperparámetros, métricas y el modelo, que queda registrado como nueva versión. Ya no guarda nada en `.joblib` local, todo vive en MLflow/MinIO.
 
-Con los datos que tengo ahora da MAE ≈ 1736.8 MW / MAPE ≈ 6.00% contra el test de 2018, cerca del forecast oficial del operador de la red española.
+Ahora mismo da MAE ≈ 1736.8 MW / MAPE ≈ 6% contra 2018, bastante cerca del forecast oficial del operador de red español.
 
-Para no esperar el tuning completo (útil para probar que el pipeline no está roto), hay un modo rápido:
+Hay un modo rápido para no esperar el tuning completo (útil para chequear que el pipeline no se rompió):
 
 ```powershell
 $env:TP_MLOPS2_QUICK_TRAIN="1"
@@ -59,7 +59,7 @@ uv run python -m tp_mlops2.train
 uv run uvicorn tp_mlops2.api.main:app --reload
 ```
 
-Swagger en `localhost:8000/docs`. Tiene `GET /health`, `GET /model/info` (metadata + métricas del modelo activo) y `POST /v1/predict`, que recibe un timestamp, la temperatura de las 5 ciudades, y la demanda real de hace 24h y 168h (el modelo usa esos dos como lags), y devuelve la predicción.
+Swagger en `localhost:8000/docs`. `GET /health`, `GET /model/info` (metadata + métricas del modelo activo), `POST /v1/predict` (timestamp + temperatura de las 5 ciudades + demanda de hace 24h y 168h, devuelve la predicción).
 
 ```json
 {
@@ -74,7 +74,7 @@ Swagger en `localhost:8000/docs`. Tiene `GET /health`, `GET /model/info` (metada
 }
 ```
 
-Un dato mal tipado (por ejemplo una temperatura como string) tira 422, gracias a la validación de Pydantic.
+Si mando algo mal tipado tira 422 (validación de Pydantic).
 
 ## API GraphQL
 
@@ -82,7 +82,7 @@ Un dato mal tipado (por ejemplo una temperatura como string) tira 422, gracias a
 uv run uvicorn tp_mlops2.graphql_api.main:app --reload --port 8001
 ```
 
-GraphiQL en `localhost:8001/graphql`. La query principal:
+GraphiQL en `localhost:8001/graphql`.
 
 ```graphql
 {
@@ -95,13 +95,40 @@ GraphiQL en `localhost:8001/graphql`. La query principal:
 }
 ```
 
-`lineage` va a buscar a Neo4j en el momento y devuelve la cadena completa: dataset crudo → dataset limpio → features que usó el modelo → experimento → modelo.
+`lineage` consulta Neo4j al momento y trae la cadena completa: dataset crudo → dataset limpio → features del modelo → experimento → modelo.
 
-**REST vs GraphQL, comparando el mismo dato:** `/model/info` en REST siempre devuelve todos los campos aunque solo me interese uno; en GraphQL pido exactamente lo que necesito. Para traer el linaje además de las métricas, en REST necesitaría un segundo endpoint y una segunda llamada; en GraphQL lo pido anidado en la misma query. REST usa el código HTTP para errores (422, 404, etc.); GraphQL casi siempre devuelve 200 y el error va adentro del JSON, en `"errors"` — hay que mirar el body, no alcanza con el status code. A cambio, GraphQL pide que el cliente sepa armar la query; para un caso tan chico como este la ventaja es marginal, se nota más cuando hay muchas entidades relacionadas entre sí.
+**REST vs GraphQL con el mismo dato:** `/model/info` en REST siempre trae todos los campos aunque me interese uno solo; en GraphQL pido justo lo que necesito. Para traer el linaje además de las métricas, en REST tendría que pegarle a un segundo endpoint; en GraphQL lo pido anidado en la misma query. REST usa el código HTTP para errores; GraphQL casi siempre devuelve 200 y el error viaja adentro del JSON (`"errors"`), así que hay que mirar el body. A cambio GraphQL exige que el cliente sepa armar la query — para algo tan chico como esto la ventaja no es enorme, se nota más con muchas entidades relacionadas.
 
-## Grafo de linaje
+## API gRPC
 
-`scripts/seed_neo4j.py` lee el modelo activo de MLflow y arma el grafo: nodos de dataset (crudo y limpio), uno por cada feature que usa el modelo, el experimento y el modelo, todos conectados. Se puede correr de nuevo sin duplicar nada (usa `MERGE`, no `CREATE`).
+```powershell
+uv run python -m tp_mlops2.grpc_api.server
+```
+
+Queda escuchando en el puerto 50051, con el modelo cargado una sola vez al arrancar. El contrato está en `scoring.proto`: `Predict` (unary, una request → una response) y `PredictBatch` (server-streaming, mando varios items en un solo request y recibo las predicciones de a una a medida que están listas).
+
+```powershell
+uv run python -m tp_mlops2.grpc_api.client
+```
+
+Prueba ambos métodos contra el servidor.
+
+**Latencia gRPC vs REST**, 50 requests a cada uno (`scripts/benchmark_latency.py`), misma predicción en los dos casos:
+
+```
+REST: media 212.20 ms | mediana 95.40 ms | p95 127.14 ms
+gRPC: media  71.11 ms | mediana 72.22 ms | p95  93.49 ms
+```
+
+gRPC dio bastante más rápido y más estable (la media de REST se aleja mucho de su mediana, señal de que hubo algunas requests lentas sueltas; gRPC se mantuvo parejo). Tiene sentido con lo que vimos en la teoría: gRPC usa HTTP/2 (multiplexado, binario) y Protobuf en vez de JSON sobre HTTP/1.1, así que paga menos overhead de serialización y de conexión por request. La contra es que perdés la inspección fácil que tenés con REST (no puedo pegarle con curl o abrir `/docs` en el navegador) y hay que generar y mantener los stubs cuando cambia el contrato.
+
+```powershell
+uv run python scripts/benchmark_latency.py
+```
+
+## Linaje (Neo4j)
+
+`scripts/seed_neo4j.py` lee el modelo activo de MLflow y arma el grafo: dataset crudo, dataset limpio, una feature por cada columna que usa el modelo, el experimento y el modelo, todo conectado. Se puede correr de nuevo sin duplicar nada.
 
 ```powershell
 uv run python scripts/seed_neo4j.py
@@ -111,23 +138,22 @@ uv run python scripts/seed_neo4j.py
 
 ```
 tp_mlops2/
-├── data/                # raw/ y processed/, no versionados
-├── notebooks/            # EDA y análisis, no es código de producción
-├── scripts/
-│   └── seed_neo4j.py
+├── data/                 # raw/ y processed/, no versionados
+├── notebooks/             # EDA, no es código de producción
+├── scripts/seed_neo4j.py
 ├── src/tp_mlops2/
-│   ├── data.py           # limpieza
-│   ├── features.py       # cíclicas + lags
-│   ├── train.py          # tuning + logging a MLflow
-│   ├── predict.py        # carga el modelo desde el registry
-│   ├── api/               # REST
-│   └── graphql_api/       # GraphQL
+│   ├── data.py            # limpieza
+│   ├── features.py        # cíclicas + lags
+│   ├── train.py           # tuning + logging a MLflow
+│   ├── predict.py         # carga el modelo desde el registry
+│   ├── api/                # REST
+│   └── graphql_api/        # GraphQL
 ├── tests/test_cliente.py
 ├── docker-compose.yml
 └── Dockerfile.api / Dockerfile.mlflow / Dockerfile.graphql
 ```
 
-El pipeline (`data.py` → `features.py` → `train.py`/`predict.py`) es independiente de los notebooks. Los notebooks quedaron solo para el análisis exploratorio, no generan nada que use el sistema en producción.
+El pipeline (`data.py` → `features.py` → `train.py`/`predict.py`) no depende de los notebooks para nada — esos quedaron solo para el análisis exploratorio.
 
 ## Tests
 
@@ -141,4 +167,4 @@ Prueba un caso válido y uno inválido contra REST, y una query contra GraphQL.
 
 ## CI
 
-En cada push a `main`, GitHub Actions corre el lint (Ruff), baja el dataset de Kaggle, entrena en modo rápido, levanta la API y corre los tests contra un servidor real.
+En cada push a `main`, GitHub Actions corre el lint (Ruff) y chequea que los módulos del pipeline importen bien. No entrena ni levanta las APIs porque eso requiere Postgres/MinIO/MLflow corriendo, y todavía no vale la pena levantar todo ese stack solo para el CI.

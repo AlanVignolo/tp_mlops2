@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package scoring;
+
+message PredictRequest {
+  string timestamp = 1;
+  double temp_madrid = 2;
+  double temp_barcelona = 3;
+  double temp_valencia = 4;
+  double temp_seville = 5;
+  double temp_bilbao = 6;
+  double load_24h_ago = 7;
+  double load_168h_ago = 8;
+}
+
+message PredictResponse {
+  double predicted_load_mw = 1;
+  string model_version = 2;
+}
+
+message BatchPredictRequest {
+  repeated PredictRequest requests = 1;
+}
+
+service Scoring {
+  rpc Predict(PredictRequest) returns (PredictResponse);
+  rpc PredictBatch(BatchPredictRequest) returns (stream PredictResponse);
+}

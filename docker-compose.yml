@@ -107,6 +107,22 @@ services:
       NEO4J_PASSWORD: ${NEO4J_PASSWORD}
     ports:
       - "8001:8001"
+      
+  grpc-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.grpc
+    container_name: tp_mlops2_grpc_api
+    depends_on:
+      - mlflow
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "50051:50051"
+
 
 volumes:
   postgres_data:
