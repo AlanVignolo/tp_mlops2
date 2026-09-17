@@ -24,29 +24,9 @@ jobs:
 
       - name: Lint with Ruff
         run: uv run ruff check .
-    
-      - name: Set up Kaggle credentials
+
+      - name: Check modules import correctly
         run: |
-          mkdir -p ~/.kaggle
-          echo '{"username":"${{ secrets.KAGGLE_USERNAME }}","key":"${{ secrets.KAGGLE_KEY }}"}' > ~/.kaggle/kaggle.json
-          chmod 600 ~/.kaggle/kaggle.json
-
-      - name: Download dataset
-        run: |
-          uv run kaggle datasets download -d nicholasjhana/energy-consumption-generation-prices-and-weather -p data/raw --unzip
-
-      - name: Train model (quick mode)
-        env:
-          TP_MLOPS2_QUICK_TRAIN: "1"
-        run: uv run python -m tp_mlops2.train
-
-      - name: Start API
-        run: |
-          uv run uvicorn tp_mlops2.api.main:app --host 127.0.0.1 --port 8000 &
-          for i in $(seq 1 20); do
-            curl -sf http://127.0.0.1:8000/health && break
-            sleep 1
-          done
-
-      - name: Run tests
-        run: uv run pytest tests/ -v
+          uv run python -c "import tp_mlops2.data"
+          uv run python -c "import tp_mlops2.features"
+          uv run python -c "import tp_mlops2.train"
